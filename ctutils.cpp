@@ -46,7 +46,7 @@ MatrixXf load_rawimage(const char *path) {
     unique_ptr<float> img_seq(new float[width * height]);
     fread(img_seq.get(), sizeof(float), width * height, f);
     fclose(f);
-    return Eigen::Map<Matrix<float, Dynamic, Dynamic, RowMajor>> (img_seq.get(), width, height);;
+    return Eigen::Map<Matrix<float, Dynamic, Dynamic, RowMajor>> (img_seq.get(), height, width);
 }
 
 void save_rawimage(const char *path, const MatrixXf &img) {
