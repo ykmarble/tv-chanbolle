@@ -10,8 +10,6 @@
 
 namespace ctutils{
 
-const int NumOfAngle = 512;
-
 using namespace Eigen;
 using namespace std;
 
@@ -46,7 +44,7 @@ MatrixXf load_rawimage(const char *path) {
     unique_ptr<float> img_seq(new float[width * height]);
     fread(img_seq.get(), sizeof(float), width * height, f);
     fclose(f);
-    return Eigen::Map<Matrix<float, Dynamic, Dynamic, RowMajor>> (img_seq.get(), width, height);;
+    return Eigen::Map<Matrix<float, Dynamic, Dynamic, RowMajor>> (img_seq.get(), height, width);
 }
 
 void save_rawimage(const char *path, const MatrixXf &img) {
@@ -94,7 +92,7 @@ void inner_proj(MatrixXf *img, MatrixXf *proj, bool inverse) {
 
     // 各indexに履かせる負の下駄の大きさ
     float img_offset = (img->cols() - 1) / 2.0;
-    float detector_offset = (proj->rows() - 1) / 2.0;
+    float detector_span = (float)(img->cols() - 1) / (proj->rows() - 1);
     float r = pow(img_offset, 2);
 
     for (int deg_i = 0; deg_i < NumOfAngle; deg_i++) {
@@ -103,74 +101,45 @@ void inner_proj(MatrixXf *img, MatrixXf *proj, bool inverse) {
         // 原点を通る検知器列に直行する直線 ax + by = 0
         float a = sin(deg);
         float b = -cos(deg);
+
+        float lay_width_2 = max(abs(a + b), abs(a - b)) / 2;
         for (int x_i = 0; x_i < img->cols(); x_i++) {
             for (int y_i = 0; y_i < img->rows(); y_i++) {
                 float x = x_i - img_offset;
                 float y = img_offset - y_i;  // 行列表記と軸の方向が逆になることに注意
 
                 // 円の外は除外
-                //if (pow(x, 2) + pow(y, 2) > r)
-                //    continue;
+                if (pow(x, 2) + pow(y, 2) > r)
+                    continue;
 
                 // distは検知器中心からの距離を意味しているが、X線源に向かって右側を正とする
                 // ローカル座標で表されている。
-                int sign = a * x + b * y < 0 ? 1 : -1;  // 角度によらずこれで符号が出る
-                float dist = sign * abs(a * x + b * y);
+                // int sign = a * x + b * y < 0 ? 1 : -1;  // 角度によらずこれで符号が出る
+                float dist = a * x + b * y;
 
-                // 影響のある検知器は高々2つ、検知器上のローカル座標系でより小さい方をlとする
-                int l = floor(dist + detector_offset);
-                int h = l + 1;
-                float h_ratio = dist - floor(dist);
-                float l_ratio = 1 - h_ratio;
+                float l_ratio = (dist - lay_width_2 + img_offset) / detector_span;
+                float h_ratio = (dist + lay_width_2 + img_offset) / detector_span;
+                int l = round(l_ratio);
+                int h = round(h_ratio);
+                l_ratio = 0.5 - (l_ratio - l);
+                h_ratio = 0.5 + (h_ratio - h);
 
                 if (inverse) {
-                    (*img)(y_i, x_i) += (*proj)(l, deg_i) * l_ratio;
-                    (*img)(y_i, x_i) += (*proj)(h, deg_i) * h_ratio;
+                    (*img)(y_i, x_i) += (*proj)(l, deg_i) * l_ratio / (2 * lay_width_2);
+                    for (int i = l + 1; i < h; i++) {
+                        (*img)(y_i, x_i) += (*proj)(i, deg_i) / (2 * lay_width_2);
+                    }
+                    (*img)(y_i, x_i) += (*proj)(h, deg_i) * h_ratio / (2 * lay_width_2);
                 } else {
                     float val = (*img)(y_i, x_i);
-                    (*proj)(l, deg_i) += val * l_ratio;
-                    (*proj)(h, deg_i) += val * h_ratio;
+                    (*proj)(l, deg_i) += val * l_ratio / (2 * lay_width_2);
+                    for (int i = l + 1; i < h; i++) {
+                        (*proj)(i, deg_i) += val  / (2 * lay_width_2);
+                    }
+                    (*proj)(h, deg_i) += val * h_ratio / (2 * lay_width_2);
                 }
             }
         }
-    }
-}
-
-void inner_proj2(MatrixXf *img, MatrixXf *proj, bool inverse) {
-    /*
-      inner_proj の lay-driven な実装
-     */
-    VectorXf locus = VectorXf::Zero(img->cols());  // 整数値との交点
-    for (int deg_i = 0; deg_i < NumOfAngle; deg_i++) {
-        float deg = 2 * M_PI * deg_i / NumOfAngle;
-        float lay_start;  // 始点
-        float disp_lay;  // 変位 displacement
-        if (deg < M_PI_4) {
-
-        } else if (deg < 3 * M_PI_4) {
-
-        } else if (deg < 5 * M_PI_4) {
-
-        } else if (deg < 7 * M_PI_4) {
-
-        } else {
-
-        }
-
-        for (int i = 0; i < img->cols(); i++) {
-
-        }
-    }
-}
-
-void linspace(float start, float step, VectorXf* out) {
-    /*
-      `start`から`step`ずつ値を増やして`out`に入れて返す
-     */
-    float y = start;
-    for (int i = 0; i < out->size(); i++) {
-        (*out)(i) = y;
-        y += step;
     }
 }
 

@@ -7,6 +7,8 @@
 
 namespace ctutils {
 
+const int NumOfAngle = 512;
+
 void normalize_image(Eigen::MatrixXf *img);
 
 void normalize_image(Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> *img);
