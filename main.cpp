@@ -1,4 +1,7 @@
 #include "ctutils.hpp"
+
+#define EIGEN_NO_DEBUG
+
 #include <eigen3/Eigen/Core>
 
 namespace {
@@ -35,7 +38,7 @@ void tv_chanbolle(MatrixXf *img, double lambda) {
     MatrixXf preview = MatrixXf::Zero(img->cols(), img->rows());
     double tau = 1.0 / 4;  // 1 / (2 * dimension)
     int i = 0;
-    while (i < 30) {
+    while (i < 1) {
         div_2(p_x, p_y, &div_p);
         preview = (*img) - div_p / lambda;
         ctutils::show_image(preview);
@@ -45,11 +48,29 @@ void tv_chanbolle(MatrixXf *img, double lambda) {
         p_x = p_x.array() / denom.array();
         p_y += tau * grad_y;
         p_y = p_y.array() / denom.array();
-        printf("%d\n", i);
         i++;
     }
     div_2(p_x, p_y, &div_p);
     *img = (*img) - div_p / lambda;
+}
+
+void sirt(const MatrixXf &data, MatrixXf *img) {
+    /*
+      `data`をデータ項としてSIRT法を適用し再構成画像を得る。
+      結果は`img`に格納される。
+     */
+    MatrixXf proj;
+    MatrixXf grad;
+    float alpha = 1 / ((double)img->rows() * img->cols());
+    int i = 0;
+    while (i < 10) {
+        proj = MatrixXf::Zero(data.rows(), data.cols());
+        ctutils::projection(*img, &proj);
+        grad = MatrixXf::Zero(img->rows(), img->cols());
+        ctutils::inv_projection(data - proj, &grad);
+        *img += alpha * grad;
+        i++;
+    }
 }
 
 }
@@ -60,8 +81,14 @@ int main(int argn, char** argv) {
         return 1;
     }
     MatrixXf img = ctutils::load_rawimage(argv[1]);
-    double lambda = 0.05;
-    tv_chanbolle(&img, lambda);
-    ctutils::show_image(img);
+    MatrixXf proj = MatrixXf::Zero(img.rows(), ctutils::NumOfAngle);
+    ctutils::projection(img, &proj);
+    for (int i = 0; i < 10; i++) {
+        printf("%d\n", i);
+        img = MatrixXf::Zero(img.rows(), img.cols());
+        sirt(proj, &img);
+        tv_chanbolle(&img, 0.05);
+        ctutils::show_image(img);
+    }
     return 0;
 }
