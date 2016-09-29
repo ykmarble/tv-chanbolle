@@ -36,6 +36,10 @@ MatrixXf load_rawimage(const char *path) {
       `path`から独自形式の画像を読み込む。画素値の正規化は行わない。
      */
     FILE* f = fopen(path, "rb");
+    if (f == nullptr) {
+        printf("failed to load image\n");
+        return MatrixXf::Zero(-1, -1);
+    }
     char magic[4];
     unsigned int width, height;
     fread(magic, sizeof(char), 4, f);
@@ -57,6 +61,10 @@ void save_rawimage(const char *path, const MatrixXf &img) {
     unsigned int width = img_t.cols();
     unsigned int height = img_t.rows();
     FILE* f = fopen(path, "wb");
+    if (f == nullptr) {
+        printf("failed to save image\n");
+        return;
+    }
     fwrite(magic, sizeof(char), 4, f);
     fwrite(&width, sizeof(unsigned int), 1, f);
     fwrite(&height, sizeof(unsigned int), 1, f);
