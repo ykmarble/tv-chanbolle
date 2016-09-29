@@ -90,19 +90,16 @@ void inner_proj(MatrixXf *img, MatrixXf *proj, bool inverse, float detector_leng
       `inverse`がfalseの時、`img`を`proj`に順投影する。
       `inverse`がtrueの時、`proj`を`img`に逆投影する。
       投影はpallarel beamジオメトリでpixel-drivenに行われる。
-      各画素から垂線を下ろした先に検知器が存在しない、つまり`proj`の長さが足りない場合エラーになる。
-      `proj`は高々画像の対角線+2の長さがあれば足りる。
      */
     // memo:
     // 画素間の幅を1、画像の中心を(0, 0)として座標系を取る。
-    // 検知器間の幅も1とし、角度0の時の検知器の中心のy座標を0としてy軸に平行に検知器が並ぶとする
+    // 検知器間の幅はdetector_lengthとprojの大きさから逆算｡
+    // 角度0の時の検知器の中心のy座標を0としてy軸に平行に検知器が並ぶとする
     // 平行ビームなので角度0の時のx座標は、画像の対角線の半分以上であれば何でもいい。
 
-    // 各indexに履かせる負の下駄の大きさ
     float img_offset = (img->cols() - 1) / 2.0;
     float detector_span = detector_length / proj->rows();
     float detector_offset = (proj->rows() - 1) / 2.0;
-    float radius = pow(img_offset, 2);
 
     for (int deg_i = 0; deg_i < NumOfAngle; deg_i++) {
         float deg = (float)deg_i / NumOfAngle * 2 * M_PI;
@@ -117,8 +114,7 @@ void inner_proj(MatrixXf *img, MatrixXf *proj, bool inverse, float detector_leng
                 float x = x_i - img_offset;
                 float y = img_offset - y_i;  // 行列表記と軸の方向が逆になることに注意
 
-                // distは検知器中心からの距離を意味しているが、X線源に向かって左側を正とする
-                // ローカル座標で表されている。
+                // distは検知器中心からの距離で、X線源に向かって左側を正とするローカル座標で表されている。
                 float dist = a * x + b * y;
 
                 float l_ratio = (dist - lay_width_2) / detector_span + detector_offset;
@@ -128,20 +124,21 @@ void inner_proj(MatrixXf *img, MatrixXf *proj, bool inverse, float detector_leng
                 l_ratio = 0.5 - (l_ratio - l);
                 h_ratio = 0.5 + (h_ratio - h);
 
+                // X線の両端が検知器列の内側に収まるようにする
                 if (l > proj->rows() - 1 || h < 0)
                     continue;
                 if (l < 0) {
                     l = 0;
                     if (l == h){
                         l_ratio = h_ratio;  // 逆端まで丸める場合､比が1に満たないので元の値を考慮する必要がある
-                        h_ratio = 0;        // ので低い側に倍率をまとめる
+                        h_ratio = 0;
                     }
                     else
                         l_ratio = 1;
                 }
                 if (h > proj->rows() - 1) {
                     h = proj->rows() - 1;
-                    if (l == h) {  // 上に同じ
+                    if (l == h) {
                         l_ratio = h_ratio;
                         h_ratio = 0;
                     }

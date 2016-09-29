@@ -29,6 +29,4 @@ void inv_projection(const Eigen::MatrixXf &proj, Eigen::MatrixXf *img, float det
 
 }
 
-#undef EIGEN_NO_DEBUG
-
 #endif /* CTUTILS_H */
