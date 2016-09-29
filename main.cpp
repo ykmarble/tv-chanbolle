@@ -1,9 +1,5 @@
 #include "ctutils.hpp"
 
-#define EIGEN_NO_DEBUG
-
-#include <eigen3/Eigen/Core>
-
 namespace {
 
 using namespace Eigen;
@@ -53,44 +49,41 @@ void tv_chanbolle(MatrixXf *img, double lambda) {
     *img = (*img) - div_p / lambda;
 }
 
-void sirt(const MatrixXf &data, MatrixXf *img, double alpha) {
+void tv_sirt(const MatrixXf &data, MatrixXf *img, double alpha, int n) {
     /*
       `data`をデータ項としてSIRT法を適用し再構成画像を得る。
       結果は`img`に格納される。
      */
-    MatrixXf proj;
-    MatrixXf grad;
-    int i = 0;
-    while (i < 10) {
-        proj = MatrixXf::Zero(data.rows(), data.cols());
-        ctutils::projection(*img, &proj);
-        grad = MatrixXf::Zero(img->rows(), img->cols());
-        ctutils::inv_projection(data - proj, &grad);
-        *img += alpha * grad;
-        i++;
+    MatrixXf proj = MatrixXf::Zero(data.rows(), data.cols());;
+    MatrixXf grad = MatrixXf::Zero(img->rows(), img->cols());;
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < 10; j++) {
+            printf("%d(%d)\n", i, j);
+            proj *= 0;
+            ctutils::projection(*img, &proj);
+            grad *= 0;
+            ctutils::inv_projection(data - proj, &grad);
+            *img += alpha * grad;
+        }
+        tv_chanbolle(img, alpha);
+        ctutils::show_image(*img);
     }
 }
 
 }
 
 int main(int argn, char** argv) {
+    const double scale = 0.8;
     if (argn != 2) {
         printf("Usage: %s file\n", argv[0]);
         return 1;
     }
     MatrixXf img = ctutils::load_rawimage(argv[1]);
-    MatrixXf proj = MatrixXf::Zero(img.rows(), ctutils::NumOfAngle);
+    const int size = ceil(img.rows() * scale);
+    MatrixXf proj = MatrixXf::Zero(size, ctutils::NumOfAngle);
+    ctutils::projection(img, &proj, size);
+    img = MatrixXf::Zero(size, size);
     double alpha = 1 / ((double)img.rows() * img.cols() * 2);
-    ctutils::projection(img, &proj, img.cols()*0.9);
-    img = MatrixXf::Zero(img.rows(), img.cols());
-    ctutils::show_image(proj);
-    return 0;
-    for (int i = 0; i < 10; i++) {
-        printf("%d\n", i);
-        sirt(proj, &img, alpha);
-        tv_chanbolle(&img, alpha);
-        printf(".\n");
-        ctutils::show_image(img);
-    }
+    tv_sirt(proj, &img, alpha, 10);
     return 0;
 }
