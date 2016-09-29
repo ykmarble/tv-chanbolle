@@ -21,7 +21,11 @@ void show_image(const Eigen::MatrixXf &img);
 
 void projection(const Eigen::MatrixXf &img ,Eigen::MatrixXf *proj);
 
+void projection(const Eigen::MatrixXf &img ,Eigen::MatrixXf *proj, float detector_length);
+
 void inv_projection(const Eigen::MatrixXf &proj, Eigen::MatrixXf *img);
+
+void inv_projection(const Eigen::MatrixXf &proj, Eigen::MatrixXf *img, float detector_length);
 
 }
 
