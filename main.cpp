@@ -78,6 +78,7 @@ void sirt(const ctutils::projector A, const MatrixXf &data, MatrixXf *img, const
         printf("%f\n", mse(proj, data));
         A.backward(data - proj, &grad);
         *img += alpha * grad;
+        ctutils::show_image(*img);
     }
 }
 
@@ -90,9 +91,7 @@ void proximal_gradient(const ctutils::projector A, const MatrixXf &data, MatrixX
     double s = 1;
     for (int i = 0; i < n; i++) {
         w_pre = w;
-        proj *= 0;
         A.forward(*img, &proj);
-        grad *= 0;
         A.backward(proj - data, &grad);
         w = *img - alpha * grad;
         //tv_chanbolle(&w, alpha);
@@ -100,7 +99,6 @@ void proximal_gradient(const ctutils::projector A, const MatrixXf &data, MatrixX
         //s = (1 + std::sqrt(1 + 4 * s * s)) / 2;
         *img =  w ;//+ (s_pre - 1 / s) * (w - w_pre);
 
-        proj *= 0;
         A.forward(*img, &proj);
         ctutils::show_image(*img);
         printf("%f\n", /*total_variation(*img) +*/ mse(proj, data));
@@ -171,7 +169,7 @@ double calc_norm_AtA(const ctutils::projector &A, const int img_w, const int det
     MatrixXf x = MatrixXf::Constant(img_w, img_w, 256);
     MatrixXf img = MatrixXf::Zero(img_w, img_w);
     MatrixXf proj = MatrixXf::Zero(det_w, angles);
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 5; i++) {
         A.forward(x, &proj);
         A.backward(proj, &img);
         A.forward(img, &proj);
@@ -226,8 +224,8 @@ double calc_norm_ANabla(const ctutils::projector &A, const MatrixXf &img, const 
 }
 
 int main(int argn, char** argv) {
-    const int NumOfAngle = 256;
-    const double scale = 1;
+    const int NumOfAngle = 220;
+    const double scale = 1.;
 
     if (argn != 2) {
         printf("Usage: %s file\n", argv[0]);
@@ -236,13 +234,12 @@ int main(int argn, char** argv) {
     MatrixXf img = ctutils::load_rawimage(argv[1]);
     const int detector_length = ceil(img.rows() * scale);
     MatrixXf proj = MatrixXf::Zero(detector_length, NumOfAngle);
-    ctutils::projector A(detector_length, true);
+    ctutils::projector A(detector_length, false);
     A.forward(img, &proj);
     A.backward(proj, &img);
     ctutils::show_image(proj);
     ctutils::show_image(img);
-    return 0;
-    const double alpha = 1 / calc_norm_AtA(A, img, proj);
+    const double alpha = 2. / (img.cols() * img.rows());
     printf("%f\n", alpha);
     A.forward(img, &proj);
 

@@ -72,67 +72,60 @@ void projector::projection_lay(const Eigen::MatrixXf &rhs, Eigen::MatrixXf *lhs)
         NoAngle = lhs->cols();
     }
 
-    const double dr     = detectors_len / NoDetector;;
+    const double dr     = detectors_len / NoDetector;
     const double dtheta = M_PI / NoAngle;
     const double img_offset = (NoX - 1) / 2.0;
     const double detector_offset = (NoDetector - 1) / 2.0;
 
-    for(int ti=0;ti<NoAngle;++ti) {
+    for(int ti = 0; ti < NoAngle; ++ti) {
         const double th = ti*dtheta;
         const double sin_th = sin(th);
         const double cos_th = cos(th);
         const double abs_sin = std::abs(sin_th);
         const double abs_cos = std::abs(cos_th);
-        if(abs_sin<abs_cos) {
-            for(int ri=0;ri<NoDetector;++ri) {
+        if(abs_sin < abs_cos) {
+            for(int ri = 0; ri < NoDetector; ++ri) {
                 const double r  = ri * dr - detector_offset;
 
-                for(int yi=0;yi<NoY;++yi) {
-                    const double ys   = yi - img_offset;
-                    const double rayx = cos_th / sin_th * ys - r /sin_th;
-                    const double left = rayx - std::floor(rayx);
-                    const double right= 1.-left;
-                    const double aij  = (1.-left )/abs_cos;
-                    const double aijp = (1.-right)/abs_cos;
-                    const int xi   = std::floor(rayx);
-                    if(inverse){
-                        if (0 <= xi && xi < NoX)
-                            (*lhs)(NoY-yi-1,xi)+=    aij  * rhs(ri,ti);
-                        if (0 <= xi+1 && xi+1 < NoX)
-                            (*lhs)(NoY-yi-1,xi+1) += aijp * rhs(ri,ti);
-                    }
-                    else {
-                        if (0 <= xi && xi < NoX)
-                            (*lhs)(ri,ti) += aij *rhs(NoY-yi-1,xi  );
-                        if (0 <= xi+1 && xi+1 < NoX)
-                            (*lhs)(ri,ti) += aijp*rhs(NoY-yi-1,xi+1);
+                for(int xi = 0; xi < NoX; ++xi) {
+                    const double xs   = xi - img_offset;
+                    const double rayy = sin_th / cos_th * xs + r / cos_th;
+                    const double aij  = (std::ceil(rayy) - rayy) / abs_cos;
+                    const double aijp = (rayy - std::floor(rayy)) / abs_cos;
+                    const double yi   = std::floor(rayy + detector_offset);
+                    if(inverse) {
+                        if (0 <= yi && yi < NoY)
+                            (*lhs)(yi, xi) += aij * rhs(ri, ti);
+                        if (0 <= yi+1 && yi+1 < NoY)
+                            (*lhs)(yi+1, xi) += aijp * rhs(ri, ti);
+                    } else {
+                        if (0 <= yi && yi < NoY)
+                            (*lhs)(ri, ti) += aij * rhs(yi, xi);
+                        if (0 <= yi+1 && yi+1 < NoY)
+                            (*lhs)(ri, ti) += aijp * rhs(yi+1, xi);
                     }
                 }
             }
-        }
-        else {
-            for(int ri=0;ri<NoDetector;++ri) {
+        } else {
+            for(int ri = 0; ri < NoDetector; ++ri) {
                 const double r  = ri * dr - detector_offset;
 
-                for(int xi=0;xi<NoX;++xi) {
-                    const double xs   = xi - img_offset;
-                    const double rayy = sin_th / cos_th * xs + r / cos_th;
-                    const double left = rayy - std::floor(rayy);
-                    const double right= 1.-left;
-                    const double aij  = (1.-left )/abs_sin;
-                    const double aijp = (1.-right)/abs_sin;
-                    const double yi   = std::floor(rayy);
-                    if(inverse) {
-                        if (0 <= NoY - yi - 1 && NoY - yi - 1 < NoY)
-                            (*lhs)(NoY - yi - 1,  xi) += aij *rhs(ri,ti);
-                        if (0 <= NoY - yi && NoY - yi < NoY)
-                            (*lhs)(NoY - yi ,xi) += aijp*rhs(ri,ti);
-                    }
-                    else {
-                        if (0 <= NoY - yi - 1 && NoY - yi - 1 < NoY)
-                            (*lhs)(ri,ti) += aij *rhs(NoY - yi - 1,  xi);
-                        if (0 <= NoY - yi && NoY - yi < NoY)
-                            (*lhs)(ri,ti) += aijp*rhs(NoY - yi,xi);
+                for(int yi = 0; yi < NoX ; ++yi) {
+                    const double ys   = yi - img_offset;
+                    const double rayx = cos_th / sin_th * ys - r / sin_th;
+                    const double aij  = (std::ceil(rayx) - rayx) / abs_sin;
+                    const double aijp = (rayx - std::floor(rayx)) / abs_sin;
+                    const double xi   = std::floor(rayx + detector_offset);
+                    if(inverse){
+                        if (0 <= xi && xi < NoX)
+                            (*lhs)(yi, xi) += aij * rhs(ri, ti);
+                        if (0 <= xi+1 && xi+1 < NoX)
+                            (*lhs)(yi, xi+1) += aijp * rhs(ri, ti);
+                    } else {
+                        if (0 <= xi && xi < NoX)
+                            (*lhs)(ri, ti) += aij *rhs(yi, xi);
+                        if (0 <= xi+1 && xi+1 < NoX)
+                            (*lhs)(ri, ti) += aijp*rhs(yi, xi+1);
                     }
                 }
             }
