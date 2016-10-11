@@ -72,60 +72,72 @@ void projector::projection_lay(const Eigen::MatrixXf &rhs, Eigen::MatrixXf *lhs)
         NoAngle = lhs->cols();
     }
 
-    const double dr     = detectors_len / NoDetector;
+    const double dr     = detectors_len / (NoDetector - 1);
     const double dtheta = M_PI / NoAngle;
     const double img_offset = (NoX - 1) / 2.0;
-    const double detector_offset = (NoDetector - 1) / 2.0;
+    const double detector_offset = dr * (NoDetector - 1) / 2.0;
 
     for(int ti = 0; ti < NoAngle; ++ti) {
-        const double th = ti*dtheta;
+        const double th = ti * dtheta;
         const double sin_th = sin(th);
         const double cos_th = cos(th);
         const double abs_sin = std::abs(sin_th);
         const double abs_cos = std::abs(cos_th);
+
         if(abs_sin < abs_cos) {
+            const double sin_cos = sin_th / cos_th;
+            const double inv_cos_th = 1 / cos_th;
+            const double inv_abs_cos = std::abs(inv_cos_th);
+
             for(int ri = 0; ri < NoDetector; ++ri) {
                 const double r  = ri * dr - detector_offset;
+                const double ray_offset = r * inv_cos_th;
 
                 for(int xi = 0; xi < NoX; ++xi) {
                     const double xs   = xi - img_offset;
-                    const double rayy = sin_th / cos_th * xs + r / cos_th;
-                    const double aij  = (std::ceil(rayy) - rayy) / abs_cos;
-                    const double aijp = (rayy - std::floor(rayy)) / abs_cos;
-                    const double yi   = std::floor(rayy + detector_offset);
+                    const double rayy = sin_cos * xs + ray_offset + img_offset;
+                    const double yi   = std::floor(rayy);
+                    const double aijp = rayy - yi;
+                    const double aij  = 1 - aijp;
+
                     if(inverse) {
                         if (0 <= yi && yi < NoY)
-                            (*lhs)(yi, xi) += aij * rhs(ri, ti);
+                            (*lhs)(yi, xi) += aij * rhs(ri, ti) * inv_abs_cos;
                         if (0 <= yi+1 && yi+1 < NoY)
-                            (*lhs)(yi+1, xi) += aijp * rhs(ri, ti);
+                            (*lhs)(yi+1, xi) += aijp * rhs(ri, ti) * inv_abs_cos;
                     } else {
                         if (0 <= yi && yi < NoY)
-                            (*lhs)(ri, ti) += aij * rhs(yi, xi);
+                            (*lhs)(ri, ti) += aij * rhs(yi, xi) * inv_abs_cos;
                         if (0 <= yi+1 && yi+1 < NoY)
-                            (*lhs)(ri, ti) += aijp * rhs(yi+1, xi);
+                            (*lhs)(ri, ti) += aijp * rhs(yi+1, xi) * inv_abs_cos;
                     }
                 }
             }
         } else {
+            const double cos_sin = cos_th / sin_th;
+            const double inv_sin_th = 1 / sin_th;
+            const double inv_abs_sin = std::abs(inv_sin_th);
+
             for(int ri = 0; ri < NoDetector; ++ri) {
                 const double r  = ri * dr - detector_offset;
+                const double ray_offset = r * inv_sin_th;
 
                 for(int yi = 0; yi < NoX ; ++yi) {
                     const double ys   = yi - img_offset;
-                    const double rayx = cos_th / sin_th * ys - r / sin_th;
-                    const double aij  = (std::ceil(rayx) - rayx) / abs_sin;
-                    const double aijp = (rayx - std::floor(rayx)) / abs_sin;
-                    const double xi   = std::floor(rayx + detector_offset);
+                    const double rayx = cos_sin * ys - ray_offset + img_offset;
+                    const double xi   = std::floor(rayx);
+                    const double aijp = rayx - xi;
+                    const double aij  = 1 - aijp;
                     if(inverse){
                         if (0 <= xi && xi < NoX)
-                            (*lhs)(yi, xi) += aij * rhs(ri, ti);
+                            (*lhs)(yi, xi) += aij * rhs(ri, ti) * inv_abs_sin;
                         if (0 <= xi+1 && xi+1 < NoX)
-                            (*lhs)(yi, xi+1) += aijp * rhs(ri, ti);
+                            (*lhs)(yi, xi+1) += aijp * rhs(ri, ti) * inv_abs_sin;
                     } else {
                         if (0 <= xi && xi < NoX)
-                            (*lhs)(ri, ti) += aij *rhs(yi, xi);
+                            (*lhs)(ri, ti) += aij *rhs(yi, xi) * inv_abs_sin;
                         if (0 <= xi+1 && xi+1 < NoX)
-                            (*lhs)(ri, ti) += aijp*rhs(yi, xi+1);
+                            (*lhs)(ri, ti) += aijp*rhs(yi, xi+1) * inv_abs_sin;
                     }
                 }
             }
@@ -167,17 +179,18 @@ void projector::projection_pixel(const Eigen::MatrixXf &rhs, Eigen::MatrixXf *lh
     }
 
     const double img_offset = (NoX - 1) / 2.0;
-    const double detector_span = detectors_len / NoDetector;
+    const double dr = NoDetector / detectors_len;
     const double detector_offset = (NoDetector - 1) / 2.0;
+    const double dth = M_PI / NoAngle;
 
     for (int deg_i = 0; deg_i < NoAngle; deg_i++) {
-        const double deg = (double)deg_i / NoAngle * M_PI;
+        const double deg = (double)deg_i * dth;
 
         // 原点を通る検知器列に直行する直線 ax + by = 0
         const double a = sin(deg);
         const double b = -cos(deg);
 
-        const double lay_width_2 = std::max(std::abs(a + b), std::abs(a - b)) / 2;
+        //const double lay_width_2 = std::max(std::abs(a + b), std::abs(a - b)) / 2;
         for (int x_i = 0; x_i < NoX; x_i++) {
             for (int y_i = 0; y_i < NoY; y_i++) {
                 const double x = x_i - img_offset;
@@ -185,51 +198,25 @@ void projector::projection_pixel(const Eigen::MatrixXf &rhs, Eigen::MatrixXf *lh
 
                 // distは検知器中心からの距離で、X線源に向かって左側を正とするローカル座標で表されている。
                 const double dist = a * x + b * y;
-
-                double l_ratio = (dist - lay_width_2) / detector_span + detector_offset;
-                double h_ratio = (dist + lay_width_2) / detector_span + detector_offset;
-                int l = round(l_ratio);
-                int h = round(h_ratio);
-                l_ratio = 0.5 - (l_ratio - l);
-                h_ratio = 0.5 + (h_ratio - h);
-
-                // X線の両端が検知器列の内側に収まるようにする
-                if (l > NoDetector - 1 || h < 0)
-                    continue;
-                if (l < 0) {
-                    l = 0;
-                    if (l == h){
-                        l_ratio = h_ratio;  // 逆端まで丸める場合､比が1に満たないので元の値を考慮する必要がある
-                        h_ratio = 0;
-                    }
-                    else
-                        l_ratio = 1;
-                }
-                if (h > NoDetector - 1) {
-                    h = NoDetector - 1;
-                    if (l == h) {
-                        l_ratio = h_ratio;
-                        h_ratio = 0;
-                    }
-                    else
-                        h_ratio = 1;
-                }
+                const double dist_on_det = dist * dr + detector_offset;
+                const int l = std::floor(dist_on_det);
+                const int h = l + 1;
+                const double l_ratio = h - dist_on_det;
+                const double h_ratio = 1 - l_ratio;
 
                 if (inverse) {
                     float val = 0;
-                    val += rhs(l, deg_i) * l_ratio;
-                    for (int i = l + 1; i < h; i++) {
-                        val += rhs(i, deg_i);
-                    }
-                    val += rhs(h, deg_i) * h_ratio;
-                    (*lhs)(y_i, x_i) += val / (2 * lay_width_2);
+                    if (0 < l && l < NoDetector)
+                        val += rhs(l, deg_i) * l_ratio;
+                    if (0 < h && h < NoDetector)
+                        val += rhs(h, deg_i) * h_ratio;
+                    (*lhs)(y_i, x_i) += val;
                 } else {
-                    float val = rhs(y_i, x_i) / (2 * lay_width_2);
-                    (*lhs)(l, deg_i) += val * l_ratio;
-                    for (int i = l + 1; i < h; i++) {
-                        (*lhs)(i, deg_i) += val;
-                    }
-                    (*lhs)(h, deg_i) += val * h_ratio;
+                    float val = rhs(y_i, x_i);
+                    if (0 < l && l < NoDetector)
+                        (*lhs)(l, deg_i) += val * l_ratio;
+                    if (0 < h && h < NoDetector)
+                        (*lhs)(h, deg_i) += val * h_ratio;
                 }
             }
         }

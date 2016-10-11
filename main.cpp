@@ -73,11 +73,11 @@ void sirt(const ctutils::projector A, const MatrixXf &data, MatrixXf *img, const
      */
     MatrixXf proj = MatrixXf::Zero(data.rows(), data.cols());
     MatrixXf grad = MatrixXf::Zero(img->rows(), img->cols());
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n; ++i) {
         A.forward(*img, &proj);
-        printf("%f\n", mse(proj, data));
         A.backward(data - proj, &grad);
         *img += alpha * grad;
+        printf("%f\n", mse(proj, data));
         ctutils::show_image(*img);
     }
 }
@@ -224,7 +224,7 @@ double calc_norm_ANabla(const ctutils::projector &A, const MatrixXf &img, const 
 }
 
 int main(int argn, char** argv) {
-    const int NumOfAngle = 220;
+    const int NumOfAngle = 128;
     const double scale = 1.;
 
     if (argn != 2) {
@@ -232,16 +232,13 @@ int main(int argn, char** argv) {
         return 1;
     }
     MatrixXf img = ctutils::load_rawimage(argv[1]);
-    const int detector_length = ceil(img.rows() * scale);
-    MatrixXf proj = MatrixXf::Zero(detector_length, NumOfAngle);
+    const double detector_length = img.rows() * scale;
+    const int NumOfDetector = ceil(detector_length * 1.5);
+    MatrixXf proj = MatrixXf::Zero(NumOfDetector, NumOfAngle);
     ctutils::projector A(detector_length, false);
     A.forward(img, &proj);
-    A.backward(proj, &img);
-    ctutils::show_image(proj);
-    ctutils::show_image(img);
-    const double alpha = 2. / (img.cols() * img.rows());
+    const double alpha = 1. / calc_norm_AtA(A, img, proj);
     printf("%f\n", alpha);
-    A.forward(img, &proj);
 
     img *= 0;
     sirt(A, proj, &img, alpha, 100);
